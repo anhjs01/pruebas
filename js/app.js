@@ -20,6 +20,23 @@ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({
   '"':"&quot;"
 }[c]));
 
+const todayISO=()=>new Date().toISOString().slice(0,10);
+function addCalendarMonths(value,months){
+  if(!value)return "";
+  const [year,month,day]=String(value).slice(0,10).split("-").map(Number);
+  if(!year||!month||!day)return "";
+  const targetMonth=month-1+Number(months||2);
+  const targetYear=year+Math.floor(targetMonth/12);
+  const normalizedMonth=((targetMonth%12)+12)%12;
+  const lastDay=new Date(targetYear,normalizedMonth+1,0).getDate();
+  return [targetYear,String(normalizedMonth+1).padStart(2,"0"),String(Math.min(day,lastDay)).padStart(2,"0")].join("-");
+}
+function updateWarrantyPreview(){
+  const delivery=$("#deliveryDate"),months=$("#warrantyMonths"),until=$("#warrantyUntil");
+  if(!delivery||!months||!until)return;
+  until.value=delivery.value?addCalendarMonths(delivery.value,months.value):"";
+}
+
 async function refresh(){
   const l=await activeLot();
   const u=await unitsForActiveLot();
@@ -30,6 +47,7 @@ async function refresh(){
 
   $("#stats").innerHTML=[
     ["Total",s.total],
+    ["Entregadas",s.delivered],
     ["Reparables",s.reparable],
     ["No reparables",s.nonrepairable],
     ["Listas para empacar",s.ready],
@@ -44,14 +62,11 @@ async function refresh(){
   const rank=new Map(latest.map((x,i)=>[x.id,i]));
 
   const filter=($("#idFilter")?.value||"").trim().toLowerCase();
-
-  const filtered=filter
-    ?u.filter(x=>String(x.unitId||"").toLowerCase().includes(filter))
-    :u;
-
-  const matches=filter
-    ?u.filter(x=>String(x.unitId||"").toLowerCase().includes(filter))
-    :[];
+  const matchesFilter=x=>
+    String(x.unitId||"").toLowerCase().includes(filter)||
+    String(x.ticket||"").toLowerCase().includes(filter);
+  const filtered=filter?u.filter(matchesFilter):u;
+  const matches=filter?filtered:[];
 
   $("#idFilterResult").textContent=
     filter
@@ -62,6 +77,7 @@ async function refresh(){
 
   $("#inventoryBody").innerHTML=filtered.map(x=>{
     const rnk=rank.get(x.id);
+    const delivered=x.deliveryStatus==="Entregado";
     const dot=
       rnk===0
         ?"newest"
@@ -71,38 +87,35 @@ async function refresh(){
             ?"old"
             :"none";
 
+    const observationText=[delivered?"ENTREGADO":"",x.observations||""].filter(Boolean).join(" · ");
     return '<tr class="'+
-      (x.diagnosis==="No reparable"
-        ?"state-no"
-        :x.packaging==="Empacado"
-          ?"state-packed"
-          :x.packaging==="Listo para empacar"
-            ?"state-ready"
-            :"")+
+      (delivered
+        ?"delivered-row"
+        :x.diagnosis==="No reparable"
+          ?"state-no"
+          :x.packaging==="Empacado"
+            ?"state-packed"
+            :x.packaging==="Listo para empacar"
+              ?"state-ready"
+              :"")+
       '">'+
       "<td>"+x.sequence+"</td>"+
       "<td>"+esc(x.ticket)+"</td>"+
       '<td><b>'+esc(x.unitId)+"</b></td>"+
       "<td>"+esc(x.manufacturer)+"</td>"+
-      "<td>"+x.lotDate+"</td>"+
+      "<td>"+esc(x.receivedDate||x.lotDate||"")+"</td>"+
+      "<td>"+esc(x.maintenanceDate||"")+"</td>"+
+      "<td>"+esc(x.deliveryDate||"")+"</td>"+
+      "<td>"+esc(x.warrantyMonths||2)+" meses"+(x.warrantyUntil?" · hasta "+esc(x.warrantyUntil):"")+"</td>"+
       "<td>"+esc(x.diagnosis)+"</td>"+
-      "<td>"+
-        (x.repairable===true
-          ?"Sí"
-          :x.repairable===false
-            ?"No"
-            :"")+
-      "</td>"+
-      "<td>"+esc((x.repairs||[]).join(" + "))+"</td>"+
-      "<td>"+esc(x.observations)+"</td>"+
+      "<td>"+(x.repairable===true?"Sí":x.repairable===false?"No":"")+"</td>"+
+      "<td>"+esc(x.maintenanceType||"")+"</td>"+
+      "<td>"+esc(x.processPerformed||(x.repairs||[]).join(" + "))+"</td>"+
+      '<td class="'+(delivered?"observations-delivered":"")+'">'+esc(observationText)+"</td>"+
       "<td>"+esc(x.packaging)+"</td>"+
       '<td class="update-cell">'+
         (x.updatedAt
-          ?'<span class="update-badge"><span class="update-dot '+
-            dot+
-            '"></span>'+
-            relativeTime(x.updatedAt)+
-            "</span>"
+          ?'<span class="update-badge"><span class="update-dot '+dot+'"></span>'+relativeTime(x.updatedAt)+"</span>"
           :'<span class="update-badge"><span class="update-dot none"></span>Sin fecha</span>')+
       "</td>"+
       '<td class="actions-cell">'+
@@ -217,6 +230,42 @@ function openForm(d={}){
             "<label>Ticket</label>"+
             '<input id="ticket">'+
           "</div>"+
+          '<div class="field">'+
+            "<label>Fecha de recepción</label>"+
+            '<input id="receivedDate" type="date">'+
+          "</div>"+
+          '<div class="field">'+
+            "<label>Fecha de mantenimiento</label>"+
+            '<input id="maintenanceDate" type="date">'+
+          "</div>"+
+          '<div class="field">'+
+            "<label>Estado de entrega</label>"+
+            '<select id="deliveryStatus"><option>Pendiente</option><option>Entregado</option></select>'+
+          "</div>"+
+          '<div class="field">'+
+            "<label>Fecha de entrega</label>"+
+            '<input id="deliveryDate" type="date">'+
+          "</div>"+
+          '<div class="field">'+
+            "<label>Garantía</label>"+
+            '<select id="warrantyMonths"><option value="2">2 meses</option><option value="3">3 meses</option><option value="4">4 meses</option><option value="5">5 meses</option><option value="6">6 meses</option></select>'+
+          "</div>"+
+          '<div class="field">'+
+            "<label>Garantía hasta</label>"+
+            '<input id="warrantyUntil" type="date" readonly>'+
+          "</div>"+
+          '<div class="field">'+
+            "<label>Tipo de mantenimiento</label>"+
+            '<select id="maintenanceType"><option value="">Seleccionar…</option><option>Mantenimiento preventivo</option><option>Mantenimiento correctivo</option><option>Reparación</option><option>Mantenimiento y reparación</option><option>Diagnóstico / pruebas</option><option>Otro</option></select>'+
+          "</div>"+
+          '<div class="field full">'+
+            "<label>Solicitud de reparación / falla reportada</label>"+
+            '<textarea id="repairRequest"></textarea>'+
+          "</div>"+
+          '<div class="field full">'+
+            "<label>Proceso realizado / reparación</label>"+
+            '<textarea id="processPerformed"></textarea>'+
+          "</div>"+
           '<div class="field full">'+
             '<label>Test de audio</label>'+
             '<div id="audio">'+
@@ -271,6 +320,15 @@ function openForm(d={}){
 
   $("#id").value=d.unitId||"";
   $("#ticket").value=d.ticket||"";
+  $("#receivedDate").value=d.receivedDate||d.lotDate||todayISO();
+  $("#maintenanceDate").value=d.maintenanceDate||"";
+  $("#deliveryDate").value=d.deliveryDate||"";
+  $("#deliveryStatus").value=d.deliveryStatus||"Pendiente";
+  $("#warrantyMonths").value=String(Math.min(6,Math.max(2,Number(d.warrantyMonths||2))));
+  $("#warrantyUntil").value=d.warrantyUntil||"";
+  $("#maintenanceType").value=d.maintenanceType||"";
+  $("#repairRequest").value=d.repairRequest||"";
+  $("#processPerformed").value=d.processPerformed||(d.repairs||[]).join(" + ")||"";
 
   $("#man").innerHTML=CONFIG.manufacturers
     .map(x=>"<option>"+esc(x)+"</option>")
@@ -351,6 +409,19 @@ function openForm(d={}){
   };
 
   $("#diag").onchange=rules;
+  $("#deliveryDate").addEventListener("input",updateWarrantyPreview);
+  $("#deliveryDate").addEventListener("change",updateWarrantyPreview);
+  $("#warrantyMonths").addEventListener("change",updateWarrantyPreview);
+  $("#deliveryStatus").addEventListener("change",()=>{
+    if($("#deliveryStatus").value==="Entregado"&&!$("#deliveryDate").value){
+      $("#deliveryDate").value=todayISO();
+    }
+    updateWarrantyPreview();
+  });
+  if($("#deliveryStatus").value==="Entregado"&&!$("#deliveryDate").value){
+    $("#deliveryDate").value=todayISO();
+  }
+  updateWarrantyPreview();
 
   root.querySelectorAll('input[name="repair"]')
     .forEach(i=>{
@@ -442,6 +513,15 @@ function openForm(d={}){
         repairs:no?[]:rs,
         observations:$("#obs").value.trim(),
         packaging:$("#pack").value,
+        receivedDate:$("#receivedDate").value||d.lotDate||todayISO(),
+        maintenanceDate:$("#maintenanceDate").value,
+        deliveryStatus:$("#deliveryStatus").value,
+        deliveryDate:$("#deliveryDate").value,
+        warrantyMonths:Number($("#warrantyMonths").value||2),
+        warrantyUntil:$("#deliveryDate").value?addCalendarMonths($("#deliveryDate").value,$("#warrantyMonths").value):"",
+        maintenanceType:$("#maintenanceType").value,
+        repairRequest:$("#repairRequest").value.trim(),
+        processPerformed:$("#processPerformed").value.trim()||rs.join(" + "),
         readType:draft.readType||"Manual",
         audioTest:
           $("#audio").dataset.result||
@@ -563,8 +643,12 @@ function lotForm(l={}){
         "</h2>"+
         '<div class="formgrid">'+
           '<div class="field">'+
-            "<label>Nombre</label>"+
+            "<label>Nombre del lote</label>"+
             '<input id="ln" value="'+esc(l.name)+'">'+
+          "</div>"+
+          '<div class="field">'+
+            "<label>Empresa / cliente (encabezado de remisión)</label>"+
+            '<input id="company" value="'+esc(l.company||"")+'" placeholder="Nombre de la empresa cliente">'+
           "</div>"+
           '<div class="field">'+
             "<label>Fecha del lote</label>"+
@@ -614,15 +698,17 @@ function lotForm(l={}){
         ...l,
         name,
         date:$("#ld").value,
+        company:$("#company").value.trim(),
         status:$("#ls").value,
         observations:$("#lo").value.trim()
       });
     }else{
-      await createLot(
+      const created=await createLot(
         name,
         $("#ld").value,
         $("#lo").value.trim()
       );
+      await updateLot({...created,company:$("#company").value.trim()});
     }
 
     await sync.broadcastSnapshot(
@@ -786,24 +872,18 @@ $("#idFilter").oninput=refresh;
 
 $("#copyBtn").onclick=async()=>{
   const u=await unitsForActiveLot();
-
-  const txt=u.map(x=>[
-    x.sequence,
-    x.ticket,
-    x.unitId,
-    x.manufacturer,
-    x.lotDate,
-    x.readType,
-    x.diagnosis,
-    x.repairable===true
-      ?"Sí"
-      :x.repairable===false
-        ?"No"
-        :"",
-    (x.repairs||[]).join(" + "),
-    x.observations,
-    x.packaging
-  ].join("\t")).join("\n");
+  const filter=($("#idFilter").value||"").trim().toLowerCase();
+  const visible=filter?u.filter(x=>String(x.unitId||"").toLowerCase().includes(filter)||String(x.ticket||"").toLowerCase().includes(filter)):u;
+  const headers=["N°","Ticket","ID","Fabricante","Fecha recepción","Fecha mantenimiento","Fecha entrega","Garantía","Diagnóstico","Reparable","Tipo de mantenimiento","Reparación / proceso","Observaciones","Empaque","Actualización"];
+  const txt=[headers,...visible.map(x=>[
+    x.sequence,x.ticket||"",x.unitId||"",x.manufacturer||"",
+    x.receivedDate||x.lotDate||"",x.maintenanceDate||"",x.deliveryDate||"",
+    (x.warrantyMonths||2)+" meses"+(x.warrantyUntil?" · hasta "+x.warrantyUntil:""),
+    x.diagnosis||"",x.repairable===true?"Sí":x.repairable===false?"No":"",
+    x.maintenanceType||"",x.processPerformed||(x.repairs||[]).join(" + "),
+    [x.deliveryStatus==="Entregado"?"ENTREGADO":"",x.observations||""].filter(Boolean).join(" · "),
+    x.packaging||"",x.updatedAt||""
+  ])].map(row=>row.map(v=>String(v??"").replace(/[\t\r\n]+/g," ")).join("\t")).join("\n");
 
   try{
     await navigator.clipboard.writeText(txt);
@@ -825,10 +905,10 @@ $("#copyBtn").onclick=async()=>{
   }
 };
 
-$("#exportExcel").onclick=async()=>
-  exportExcel(
-    await unitsForActiveLot()
-  );
+$("#exportExcel").onclick=async()=>{
+  const lot=await activeLot();
+  await exportExcel(await unitsForActiveLot(),lot);
+};
 
 $("#importExcel").onclick=async()=>{
   if(!(await requireLot())){
