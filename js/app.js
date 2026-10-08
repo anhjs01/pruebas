@@ -799,9 +799,9 @@ async function applySnapshot(snapshot){
   }
 
   await Promise.all([
-    ...unitMap.values().map(x => put(CONFIG.store, x)),
-    ...lotMap.values().map(x => put(CONFIG.lots, x)),
-    ...metaMap.values().map(x => put(CONFIG.meta, x))
+    ...[...unitMap.values()].map(x => put(CONFIG.store, x)),
+    ...[...lotMap.values()].map(x => put(CONFIG.lots, x)),
+    ...[...metaMap.values()].map(x => put(CONFIG.meta, x))
   ]);
 
   await refresh();
