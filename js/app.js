@@ -735,33 +735,73 @@ async function applySnapshot(snapshot){
     !Array.isArray(snapshot.lots)||
     !Array.isArray(snapshot.meta)
   ){
-    throw new Error(
-      "Datos de sincronización inválidos."
-    );
+    throw new Error("Datos de sincronización inválidos.");
   }
 
-  for(
-    const store of [
-      CONFIG.store,
-      CONFIG.lots,
-      CONFIG.meta
-    ]
-  ){
-    const current=await getAll(store);
-    await Promise.all(
-      current.map(x=>
-        del(
-          store,
-          x.id??x.key
-        )
-      )
-    );
+  // Combina los registros de ambos dispositivos en vez de borrar
+  // todo el inventario local al recibir una instantánea.
+  const currentUnits = await getAll(CONFIG.store);
+  const currentLots = await getAll(CONFIG.lots);
+  const currentMeta = await getAll(CONFIG.meta);
+
+  const newer = (a, b) => {
+    const ta = Date.parse(a?.updatedAt || a?.createdAt || "") || 0;
+    const tb = Date.parse(b?.updatedAt || b?.createdAt || "") || 0;
+    return tb > ta ? b : a;
+  };
+
+  const unitMap = new Map();
+  for (const unit of [...currentUnits, ...snapshot.units]) {
+    const key = unit?.unitId
+      ? "unitId:" + String(unit.unitId).trim().toLowerCase()
+      : "id:" + String(unit?.id || "");
+    if (!unit?.id && !unit?.unitId) continue;
+    unitMap.set(key, unitMap.has(key) ? newer(unitMap.get(key), unit) : unit);
+  }
+
+  const lotMap = new Map();
+  for (const lot of [...currentLots, ...snapshot.lots]) {
+    if (!lot?.id) continue;
+    lotMap.set(lot.id, lotMap.has(lot.id) ? newer(lotMap.get(lot.id), lot) : lot);
+  }
+
+  const metaMap = new Map();
+  for (const item of [...currentMeta, ...snapshot.meta]) {
+    const key = item?.key;
+    if (key == null) continue;
+    if (["usedIds", "deletedIds"].includes(key)) {
+      const values = [
+        ...(Array.isArray(metaMap.get(key)?.value) ? metaMap.get(key).value : []),
+        ...(Array.isArray(item.value) ? item.value : [])
+      ];
+      metaMap.set(key, { key, value: [...new Set(values.map(String))] });
+    } else if (key === "activeLot") {
+      if (!metaMap.has(key)) metaMap.set(key, item);
+    } else {
+      metaMap.set(key, metaMap.has(key) ? newer(metaMap.get(key), item) : item);
+    }
+  }
+
+  const mergedLots = [...lotMap.values()];
+  const validLotIds = new Set(mergedLots.map(x => x.id));
+  const mergedMeta = [...metaMap.values()];
+  const active = mergedMeta.find(x => x.key === "activeLot");
+  if (active && !validLotIds.has(active.value)) {
+    const replacementLot = mergedLots[0];
+    if (replacementLot) active.value = replacementLot.id;
+    else metaMap.delete("activeLot");
+  }
+
+  // Solo después de preparar la unión se reemplaza el contenido local.
+  for (const store of [CONFIG.store, CONFIG.lots, CONFIG.meta]) {
+    const current = await getAll(store);
+    await Promise.all(current.map(x => del(store, x.id ?? x.key)));
   }
 
   await Promise.all([
-    ...snapshot.units.map(x=>put(CONFIG.store,x)),
-    ...snapshot.lots.map(x=>put(CONFIG.lots,x)),
-    ...snapshot.meta.map(x=>put(CONFIG.meta,x))
+    ...unitMap.values().map(x => put(CONFIG.store, x)),
+    ...lotMap.values().map(x => put(CONFIG.lots, x)),
+    ...metaMap.values().map(x => put(CONFIG.meta, x))
   ]);
 
   await refresh();
