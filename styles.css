@@ -977,3 +977,34 @@ footer {
         flex: 1
     }
 }
+
+/* Mejoras de legibilidad del inventario y estado de entrega */
+table {
+    min-width: 1900px;
+    table-layout: auto;
+}
+th, td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+}
+th {
+    min-width: 88px;
+    white-space: normal;
+}
+.delivered-row td {
+    background: #fff !important;
+    color: #172033;
+}
+.delivered-row td.observations-delivered {
+    background: #002060 !important;
+    color: #fff !important;
+    font-weight: 700;
+    min-width: 220px;
+}
+.delivered-row td.observations-delivered * {
+    color: #fff !important;
+}
+@media (min-width: 901px) {
+    .stats { grid-template-columns: repeat(6, minmax(110px, 1fr)); }
+}
