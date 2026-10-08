@@ -1,27 +1,27 @@
 export function rows(u) {
   return u.map(x => ({
-    "N°": x.sequence,
+    "N°": x.sequence ?? "",
     "Ticket": x.ticket || "",
     "ID": x.unitId || "",
     "Fabricante": x.manufacturer || "",
-    "Fecha del lote": x.lotDate || "",
+    "Fecha recepción": x.receivedDate || x.lotDate || "",
+    "Fecha mantenimiento": x.maintenanceDate || "",
+    "Fecha entrega": x.deliveryDate || "",
+    "Garantía (meses)": Number(x.warrantyMonths || 2),
+    "Garantía hasta": x.warrantyUntil || "",
     "Tipo de lectura": x.readType || "",
     "Cantidad": 1,
     "Estado diagnóstico": x.diagnosis || "",
-    "Reparable":
-      x.repairable === true
-        ? "Sí"
-        : x.repairable === false
-          ? "No"
-          : "",
-    "Motivo no reparable":
-      (x.noRepairReasons || []).join(" + "),
-    "Reparación / mantenimiento":
-      (x.repairs || []).join(" + "),
-    "Observaciones":
-      x.observations || "",
-    "Empaque":
-      x.packaging || ""
+    "Reparable": x.repairable === true ? "Sí" : x.repairable === false ? "No" : "",
+    "Motivo no reparable": (x.noRepairReasons || []).join(" + "),
+    "Tipo de mantenimiento": x.maintenanceType || "",
+    "Solicitud / falla reportada": x.repairRequest || "",
+    "Reparación / proceso realizado": x.processPerformed || (x.repairs || []).join(" + "),
+    "Observaciones": [
+      x.deliveryStatus === "Entregado" ? "ENTREGADO" : "",
+      x.observations || ""
+    ].filter(Boolean).join(" · "),
+    "Empaque": x.packaging || ""
   }));
 }
 
@@ -31,12 +31,18 @@ export async function exportExcel(u) {
   }
 
   const data = rows(u);
+  const wb = XLSX.utils.book_new();
 
-  const ws =
-    XLSX.utils.json_to_sheet(data);
+  if (!data.length) {
+    const headers = ["N°","Ticket","ID","Fabricante","Fecha recepción","Fecha mantenimiento","Fecha entrega","Garantía (meses)","Garantía hasta","Tipo de lectura","Cantidad","Estado diagnóstico","Reparable","Motivo no reparable","Tipo de mantenimiento","Solicitud / falla reportada","Reparación / proceso realizado","Observaciones","Empaque"];
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    ws["!cols"] = headers.map((h, i) => ({ wch: [6,14,12,18,15,18,15,15,15,16,10,18,12,28,24,32,34,36,20][i] }));
+    XLSX.utils.book_append_sheet(wb, ws, "Inventario");
+    XLSX.writeFile(wb, "conteo-rapido.xlsx");
+    return;
+  }
 
-  const wb =
-    XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(data);
 
   XLSX.utils.book_append_sheet(
     wb,
@@ -96,21 +102,11 @@ export async function exportExcel(u) {
     const row =
       data[r - 1];
 
+    const delivered = /(^| · )ENTREGADO( · |$)/i.test(String(row["Observaciones"] || ""));
     const fill =
-      row["Estado diagnóstico"] ===
-      "No reparable"
-        ? "FECACA"
-        : row.Empaque ===
-          "Empacado"
-          ? "BBF7D0"
-          : row.Empaque ===
-            "Listo para empacar"
-            ? "FEF08A"
-            : null;
-
-    if (!fill) {
-      continue;
-    }
+      row["Estado diagnóstico"] === "No reparable" ? "FECACA" :
+      row.Empaque === "Empacado" ? "BBF7D0" :
+      row.Empaque === "Listo para empacar" ? "FEF08A" : null;
 
     for (
       let c = range.s.c;
@@ -126,17 +122,12 @@ export async function exportExcel(u) {
         ];
 
       if (cell) {
-        cell.s = {
-          fill: {
-            fgColor: {
-              rgb: fill
-            }
-          },
-          alignment: {
-            vertical: "top",
-            wrapText: true
-          }
-        };
+        const isObservations = c === Object.keys(data[r - 1]).indexOf("Observaciones");
+        if (delivered && isObservations) {
+          cell.s = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "002060" } }, alignment: { vertical: "center", horizontal: "left", wrapText: true } };
+        } else if (fill) {
+          cell.s = { fill: { fgColor: { rgb: fill } }, alignment: { vertical: "top", wrapText: true } };
+        }
       }
     }
   }
@@ -160,17 +151,8 @@ export async function exportExcel(u) {
   /*
     Ancho de columnas
   */
-  ws["!cols"] =
-    Object.keys(
-      data[0] || {
-        "N°": ""
-      }
-    ).map(k => ({
-      wch: Math.min(
-        36,
-        Math.max(10, k.length + 2)
-      )
-    }));
+  const widths = {"N°":6,"Ticket":14,"ID":12,"Fabricante":18,"Fecha recepción":15,"Fecha mantenimiento":18,"Fecha entrega":15,"Garantía (meses)":15,"Garantía hasta":15,"Tipo de lectura":16,"Cantidad":10,"Estado diagnóstico":18,"Reparable":12,"Motivo no reparable":28,"Tipo de mantenimiento":24,"Solicitud / falla reportada":32,"Reparación / proceso realizado":34,"Observaciones":36,"Empaque":20};
+  ws["!cols"] = Object.keys(data[0]).map(k => ({ wch: widths[k] || Math.min(36, Math.max(12, k.length + 2)) }));
 
   XLSX.writeFile(
     wb,
@@ -196,40 +178,19 @@ function splitValues(value) {
 }
 
 function parseRepairable(value, diagnosis) {
-  const v =
-    clean(value).toLowerCase();
-
-  if (
-    v === "sí" ||
-    v === "si" ||
-    v === "yes" ||
-    v === "true"
-  ) {
-    return true;
-  }
-
-  if (
-    v === "no" ||
-    v === "false"
-  ) {
-    return false;
-  }
-
-  return diagnosis !== "No reparable";
+  const v = clean(value).toLowerCase();
+  if (["sí", "si", "yes", "true"].includes(v)) return true;
+  if (["no", "false"].includes(v)) return false;
+  if (diagnosis === "No reparable") return false;
+  if (diagnosis === "Reparable") return true;
+  return null;
 }
 
-function normalizeDiagnosis(value) {
-  const v =
-    clean(value).toLowerCase();
-
-  if (
-    v === "no reparable" ||
-    v === "no reparable "
-  ) {
-    return "No reparable";
-  }
-
-  return "Reparable";
+function normalizeDiagnosis(value, rowNumber) {
+  const v = clean(value).toLowerCase();
+  if (["no reparable", "no-reparable"].includes(v)) return "No reparable";
+  if (["reparable", "reparado"].includes(v)) return "Reparable";
+  throw new Error(`La fila ${rowNumber} tiene un diagnóstico vacío o desconocido. Corrígelo antes de importar.`);
 }
 
 /**
@@ -237,10 +198,7 @@ function normalizeDiagnosis(value) {
  * Conteo Rápido a una unidad de inventario.
  */
 export function rowToUnit(row, index, lot) {
-  const diagnosis =
-    normalizeDiagnosis(
-      row["Estado diagnóstico"]
-    );
+  const diagnosis = normalizeDiagnosis(row["Estado diagnóstico"], index + 2);
 
   const unitId =
     clean(row["ID"]);
@@ -286,9 +244,16 @@ export function rowToUnit(row, index, lot) {
       clean(row["Fabricante"]) ||
       "Pendiente",
 
-    lotDate:
-      clean(row["Fecha del lote"]) ||
-      lot.date,
+    lotDate: clean(row["Fecha recepción"] || row["Fecha del lote"]) || lot.date,
+    receivedDate: clean(row["Fecha recepción"] || row["Fecha del lote"]) || lot.date,
+    maintenanceDate: clean(row["Fecha mantenimiento"]),
+    deliveryDate: clean(row["Fecha entrega"]),
+    deliveryStatus: /(^| · )ENTREGADO( · |$)/i.test(clean(row["Observaciones"])) ? "Entregado" : "Pendiente",
+    warrantyMonths: Math.min(6, Math.max(2, Number(row["Garantía (meses)"] || 2))),
+    warrantyUntil: clean(row["Garantía hasta"]),
+    maintenanceType: clean(row["Tipo de mantenimiento"]),
+    repairRequest: clean(row["Solicitud / falla reportada"]),
+    processPerformed: clean(row["Reparación / proceso realizado"] || row["Reparación / mantenimiento"]),
 
     readType:
       clean(row["Tipo de lectura"]) ||
@@ -307,8 +272,7 @@ export function rowToUnit(row, index, lot) {
 
     repairs,
 
-    observations:
-      clean(row["Observaciones"]),
+    observations: clean(row["Observaciones"]).replace(/(^| · )ENTREGADO( · |$)/ig, " ").replace(/\s*·\s*·\s*/g, " · ").trim().replace(/^·\s*|\s*·$/g, ""),
 
     packaging:
       clean(row["Empaque"]) ||
@@ -397,19 +361,9 @@ export async function readExcelFile(file) {
     );
   }
 
-  const requiredColumns = [
-    "ID"
-  ];
-
-  const columns =
-    Object.keys(rows[0]);
-
-  for (const column of requiredColumns) {
-    if (!columns.includes(column)) {
-      throw new Error(
-        `El Excel no tiene la columna "${column}".`
-      );
-    }
+  const columns = Object.keys(rows[0]);
+  if (!columns.includes("ID")) {
+    throw new Error('El Excel no tiene la columna "ID".');
   }
 
   return {
