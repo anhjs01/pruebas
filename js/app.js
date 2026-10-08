@@ -992,7 +992,7 @@ $("#importExcelFile").onchange=async e=>{
     const result=await readExcelFile(file);
     const current=await unitsForActiveLot();
     const currentIds=new Set(
-      current.map(x=>String(x.unitId||"").trim()).filter(Boolean)
+      current.map(x=>String(x.unitId||"").trim().toLowerCase()).filter(Boolean)
     );
 
     const history=await getByKey(
@@ -1002,7 +1002,7 @@ $("#importExcelFile").onchange=async e=>{
 
     const usedIds=new Set(
       Array.isArray(history?.value)
-        ?history.value
+        ?history.value.map(value=>String(value).trim().toLowerCase())
         :[]
     );
 
@@ -1012,20 +1012,21 @@ $("#importExcelFile").onchange=async e=>{
     for(let i=0;i<result.rows.length;i++){
       const imported=rowToUnit(result.rows[i],i,lot);
       const unitId=String(imported.unitId||"").trim();
+      const normalizedUnitId=unitId.toLowerCase();
 
-      if(currentIds.has(unitId)){
+      if(currentIds.has(normalizedUnitId)){
         skipped++;
         continue;
       }
 
-      if(usedIds.has(unitId)){
+      if(usedIds.has(normalizedUnitId)){
         throw new Error(
           `El ID "${unitId}" ya fue utilizado anteriormente y no puede reutilizarse.`
         );
       }
 
-      currentIds.add(unitId);
-      usedIds.add(unitId);
+      currentIds.add(normalizedUnitId);
+      usedIds.add(normalizedUnitId);
       pending.push(imported);
     }
 
