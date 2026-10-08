@@ -390,12 +390,27 @@ export async function readExcelFile(file) {
 export function exportCsv(u) {
   const d = rows(u);
 
-  const k =
-    Object.keys(
-      d[0] || {
-        "N°": ""
-      }
-    );
+  const k = Object.keys(d[0] || {
+    "N°": "",
+    "Ticket": "",
+    "ID": "",
+    "Fabricante": "",
+    "Fecha recepción": "",
+    "Fecha mantenimiento": "",
+    "Fecha entrega": "",
+    "Garantía (meses)": "",
+    "Garantía hasta": "",
+    "Tipo de lectura": "",
+    "Cantidad": "",
+    "Estado diagnóstico": "",
+    "Reparable": "",
+    "Motivo no reparable": "",
+    "Tipo de mantenimiento": "",
+    "Solicitud / falla reportada": "",
+    "Reparación / proceso realizado": "",
+    "Observaciones": "",
+    "Empaque": ""
+  });
 
   const e = value =>
     String(value ?? "")
