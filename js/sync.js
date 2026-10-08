@@ -49,6 +49,12 @@ async function receiveSnapshotChunk(m){
       await applySnapshot(snapshot);
     }
     send({type:"sync-ack",version:remoteVersion});
+    // Devuelve la unión combinada para que el otro dispositivo también
+    // conserve los registros que solo existían localmente.
+    const merged = await getSnapshot();
+    const mergedVersion = Math.max(Date.now(), localVersion + 1, remoteVersion + 1);
+    localVersion = mergedVersion;
+    sendSnapshot("state-update", merged, mergedVersion);
     await finish("Sincronización inicial completada.");
     return;
   }
