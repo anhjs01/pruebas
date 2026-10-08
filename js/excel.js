@@ -258,8 +258,8 @@ export function rowToUnit(row, index, lot) {
       clean(row["Fabricante"]) ||
       "Pendiente",
 
-    lotDate: clean(row["Fecha recepción"] || row["Fecha del lote"]) || lot.date,
-    receivedDate: clean(row["Fecha recepción"] || row["Fecha del lote"]) || lot.date,
+    lotDate: cleanDate(row["Fecha recepción"] || row["Fecha del lote"]) || lot.date,
+    receivedDate: cleanDate(row["Fecha recepción"] || row["Fecha del lote"]) || lot.date,
     maintenanceDate: cleanDate(row["Fecha mantenimiento"]),
     deliveryDate: cleanDate(row["Fecha entrega"]),
     deliveryStatus: /(^| · )ENTREGADO( · |$)/i.test(clean(row["Observaciones"])) ? "Entregado" : "Pendiente",
