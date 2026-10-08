@@ -224,6 +224,10 @@ export function stats(units) {
   return {
     total: units.length,
 
+    delivered: units.filter(
+      unit => unit.deliveryStatus === "Entregado"
+    ).length,
+
     reparable: units.filter(
       unit =>
         unit.diagnosis === "Reparable" ||
