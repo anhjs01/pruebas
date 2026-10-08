@@ -259,13 +259,14 @@ export function stats(units) {
  * No cambia la lógica actual de IDs.
  */
 async function generateUnusedUnitId(usedIds) {
+  const normalizedUsedIds = new Set(usedIds.map(value => String(value).trim().toLowerCase()));
   let number = 1;
 
   while (true) {
     const candidate =
       `J${String(number).padStart(3, "0")}`;
 
-    if (!usedIds.includes(candidate)) {
+    if (!normalizedUsedIds.has(candidate.toLowerCase())) {
       return candidate;
     }
 
@@ -319,6 +320,8 @@ export async function saveUnit(data, oldId) {
       ? [...history.value]
       : [];
 
+  const normalizedUsedIds = new Set(usedIds.map(value => String(value).trim().toLowerCase()));
+
   let unitId =
     (data.unitId || "").trim();
 
@@ -329,14 +332,14 @@ export async function saveUnit(data, oldId) {
 
   if (
     !old &&
-    usedIds.includes(unitId)
+    normalizedUsedIds.has(unitId.toLowerCase())
   ) {
     throw new Error(
       "Ese ID ya fue utilizado y no puede reutilizarse."
     );
   }
 
-  if (!usedIds.includes(unitId)) {
+  if (!normalizedUsedIds.has(unitId.toLowerCase())) {
     usedIds.push(unitId);
 
     await put(CONFIG.meta, {
