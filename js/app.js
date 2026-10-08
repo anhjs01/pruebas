@@ -787,10 +787,13 @@ async function applySnapshot(snapshot){
   // evita que una unidad eliminada reaparezca desde otro dispositivo.
   const deletedMeta = metaMap.get("deletedIds");
   const deletedIds = new Set(
-    Array.isArray(deletedMeta?.value) ? deletedMeta.value.map(String) : []
+    Array.isArray(deletedMeta?.value)
+      ? deletedMeta.value.map(value => String(value).trim().toLowerCase())
+      : []
   );
   for (const [key, unit] of unitMap) {
-    if (unit?.unitId && deletedIds.has(String(unit.unitId))) {
+    const unitId = String(unit?.unitId || "").trim().toLowerCase();
+    if (unitId && deletedIds.has(unitId)) {
       unitMap.delete(key);
     }
   }
