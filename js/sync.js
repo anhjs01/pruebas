@@ -128,6 +128,10 @@ function attach(conn,r="host"){
           await applySnapshot(m.snapshot);
         }
         send({type:"sync-ack",version:remoteVersion});
+        const merged = await getSnapshot();
+        const mergedVersion = Math.max(Date.now(), localVersion + 1, remoteVersion + 1);
+        localVersion = mergedVersion;
+        sendSnapshot("state-update", merged, mergedVersion);
         await finish("Sincronización inicial completada.");
         return;
       }
