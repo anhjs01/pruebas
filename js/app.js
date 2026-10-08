@@ -782,6 +782,18 @@ async function applySnapshot(snapshot){
     }
   }
 
+  // Los tombstones de borrado prevalecen frente a copias antiguas:
+  // evita que una unidad eliminada reaparezca desde otro dispositivo.
+  const deletedMeta = metaMap.get("deletedIds");
+  const deletedIds = new Set(
+    Array.isArray(deletedMeta?.value) ? deletedMeta.value.map(String) : []
+  );
+  for (const [key, unit] of unitMap) {
+    if (unit?.unitId && deletedIds.has(String(unit.unitId))) {
+      unitMap.delete(key);
+    }
+  }
+
   const mergedLots = [...lotMap.values()];
   const validLotIds = new Set(mergedLots.map(x => x.id));
   const mergedMeta = [...metaMap.values()];
