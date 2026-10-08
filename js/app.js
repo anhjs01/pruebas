@@ -47,6 +47,7 @@ async function refresh(){
 
   $("#stats").innerHTML=[
     ["Total",s.total],
+    ["Pendientes",s.pending],
     ["Entregadas",s.delivered],
     ["Reparables",s.reparable],
     ["No reparables",s.nonrepairable],
