@@ -170,6 +170,20 @@ function clean(value) {
   return String(value ?? "").trim();
 }
 
+function cleanDate(value) {
+  if (value == null || value === "") return "";
+  if (typeof value === "number" && Number.isFinite(value) && value >= 20000 && value <= 80000) {
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.round(value) * 86400000);
+    return date.toISOString().slice(0, 10);
+  }
+  const text = clean(value);
+  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) return [iso[1], String(iso[2]).padStart(2, "0"), String(iso[3]).padStart(2, "0")].join("-");
+  const local = text.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/);
+  if (local) return [local[3], String(local[2]).padStart(2, "0"), String(local[1]).padStart(2, "0")].join("-");
+  return text;
+}
+
 function splitValues(value) {
   return clean(value)
     .split("+")
@@ -246,11 +260,11 @@ export function rowToUnit(row, index, lot) {
 
     lotDate: clean(row["Fecha recepción"] || row["Fecha del lote"]) || lot.date,
     receivedDate: clean(row["Fecha recepción"] || row["Fecha del lote"]) || lot.date,
-    maintenanceDate: clean(row["Fecha mantenimiento"]),
-    deliveryDate: clean(row["Fecha entrega"]),
+    maintenanceDate: cleanDate(row["Fecha mantenimiento"]),
+    deliveryDate: cleanDate(row["Fecha entrega"]),
     deliveryStatus: /(^| · )ENTREGADO( · |$)/i.test(clean(row["Observaciones"])) ? "Entregado" : "Pendiente",
     warrantyMonths: Math.min(6, Math.max(2, Number(row["Garantía (meses)"] || 2))),
-    warrantyUntil: clean(row["Garantía hasta"]),
+    warrantyUntil: cleanDate(row["Garantía hasta"]),
     maintenanceType: clean(row["Tipo de mantenimiento"]),
     repairRequest: clean(row["Solicitud / falla reportada"]),
     processPerformed: clean(row["Reparación / proceso realizado"] || row["Reparación / mantenimiento"]),
