@@ -227,9 +227,8 @@ export function rowToUnit(row, index, lot) {
     diagnosis === "No reparable"
       ? []
       : splitValues(
-          row[
-            "Reparación / mantenimiento"
-          ]
+          row["Reparación / proceso realizado"] ||
+          row["Reparación / mantenimiento"]
         );
 
   const reasons =
