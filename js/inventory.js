@@ -228,6 +228,10 @@ export function stats(units) {
       unit => unit.deliveryStatus === "Entregado"
     ).length,
 
+    pending: units.filter(
+      unit => unit.deliveryStatus !== "Entregado"
+    ).length,
+
     reparable: units.filter(
       unit =>
         unit.diagnosis === "Reparable" ||
