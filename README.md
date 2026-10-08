@@ -1,3 +1,2 @@
-# Conteo Rápido — entorno de pruebas
-
-Repositorio de pruebas separado del proyecto original. Los cambios se validarán aquí; no se modificará el repositorio fuente.
+# Conteo Rápido
+Aplicación de inventario de diademas/headsets. IndexedDB es la fuente de verdad. Los módulos separan datos, lotes, inventario, scanner, audio y exportación. Servir por HTTPS o localhost para cámara, micrófono y PWA. El ID usa una secuencia persistente y no se reutiliza después de eliminar. Excel, CSV y JSON parten de los mismos registros que tabla y estadísticas.
