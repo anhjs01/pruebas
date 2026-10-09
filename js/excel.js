@@ -262,7 +262,7 @@ export function rowToUnit(row, index, lot) {
     maintenanceDate: cleanDate(row["Fecha mantenimiento"]),
     deliveryDate: cleanDate(row["Fecha entrega"]),
     deliveryStatus: /(^| · )ENTREGADO( · |$)/i.test(clean(row["Observaciones"])) ? "Entregado" : "Pendiente",
-    warrantyMonths: Math.min(6, Math.max(2, Number(row["Garantía (meses)"] || 2))),
+    warrantyMonths: (() => { const months = Number(row["Garantía (meses)"] || 2); return Number.isFinite(months) ? Math.min(6, Math.max(2, Math.round(months))) : 2; })(),
     warrantyUntil: cleanDate(row["Garantía hasta"]),
     maintenanceType: clean(row["Tipo de mantenimiento"]),
     repairRequest: clean(row["Solicitud / falla reportada"]),
