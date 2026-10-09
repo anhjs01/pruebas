@@ -330,8 +330,11 @@ export async function saveUnit(data, oldId) {
       await generateUnusedUnitId(usedIds);
   }
 
+  const changingExistingId = old &&
+    unitId.toLowerCase() !== String(old.unitId || "").trim().toLowerCase();
+
   if (
-    !old &&
+    (!old || changingExistingId) &&
     normalizedUsedIds.has(unitId.toLowerCase())
   ) {
     throw new Error(
