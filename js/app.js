@@ -656,9 +656,7 @@ function lotForm(l={}){
             '<input id="ld" type="date" value="'+
               esc(
                 l.date||
-                new Date()
-                  .toISOString()
-                  .slice(0,10)
+                todayISO()
               )+
             '">'+
           "</div>"+
