@@ -20,7 +20,7 @@ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({
   '"':"&quot;"
 }[c]));
 
-const todayISO=()=>new Date().toISOString().slice(0,10);
+const todayISO=(date=new Date())=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,"0"),String(date.getDate()).padStart(2,"0")].join("-");
 function addCalendarMonths(value,months){
   if(!value)return "";
   const [year,month,day]=String(value).slice(0,10).split("-").map(Number);
