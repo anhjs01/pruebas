@@ -495,7 +495,7 @@ function openForm(d={}){
       if(
         id&&
         all.some(
-          x=>x.unitId===id&&
+          x=>String(x.unitId||"").trim().toLowerCase()===id.trim().toLowerCase()&&
           x.id!==editing?.id
         )
       ){
