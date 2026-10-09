@@ -330,12 +330,23 @@ export async function saveUnit(data, oldId) {
       await generateUnusedUnitId(usedIds);
   }
 
+  // También comprobamos el inventario actual: puede haber registros
+  // antiguos/importados cuyo ID no figure en el historial usedIds.
+  const normalizedUnitId = unitId.toLowerCase();
+  const duplicate = (await getAll(CONFIG.store)).find(unit =>
+    unit.id !== old?.id &&
+    String(unit.unitId || "").trim().toLowerCase() === normalizedUnitId
+  );
+  if (duplicate) {
+    throw new Error("Ese ID ya está asignado a otra unidad del inventario.");
+  }
+
   const changingExistingId = old &&
-    unitId.toLowerCase() !== String(old.unitId || "").trim().toLowerCase();
+    normalizedUnitId !== String(old.unitId || "").trim().toLowerCase();
 
   if (
     (!old || changingExistingId) &&
-    normalizedUsedIds.has(unitId.toLowerCase())
+    normalizedUsedIds.has(normalizedUnitId)
   ) {
     throw new Error(
       "Ese ID ya fue utilizado y no puede reutilizarse."
