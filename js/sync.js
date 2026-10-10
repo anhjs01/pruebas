@@ -27,20 +27,49 @@ function sendUpdate(snapshot,version=0){
 }
 async function receiveSnapshotChunk(m){
   const id=String(m.transferId||"");
-  if(!id||!Number.isInteger(m.index)||!Number.isInteger(m.total)||m.total<1||m.index<0||m.index>=m.total||typeof m.data!=="string")return;
+  const allowedPurposes=new Set(["state-response","state-update"]);
+  // Cada fragmento normal contiene como máximo 5.000 caracteres.
+  // El límite total evita reservar arrays enormes con mensajes malformados.
+  if(!id||id.length>160||!allowedPurposes.has(m.purpose)||
+    !Number.isInteger(m.index)||!Number.isInteger(m.total)||
+    m.total<1||m.total>2000||m.index<0||m.index>=m.total||
+    typeof m.data!=="string"||m.data.length>5000)return;
   let t=incomingTransfers.get(id);
   if(!t){
-    t={total:m.total,version:Number(m.version)||Date.now(),purpose:m.purpose,chunks:new Array(m.total),received:0};
+    // Limita las transferencias incompletas simultáneas para contener el uso de memoria.
+    if(incomingTransfers.size>=4){
+      const oldest=incomingTransfers.keys().next().value;
+      incomingTransfers.delete(oldest);
+    }
+    t={total:m.total,version:Number(m.version)||Date.now(),purpose:m.purpose,chunks:new Array(m.total),received:0,chars:0};
     incomingTransfers.set(id,t);
   }
-  if(t.total!==m.total)return;
+  if(t.total!==m.total||t.purpose!==m.purpose)return;
+  if(t.chunks[m.index]===undefined&&t.chars+m.data.length>10000000){
+    incomingTransfers.delete(id);
+    return;
+  }
   if(t.chunks[m.index]===undefined){
     t.chunks[m.index]=m.data;
     t.received++;
+    t.chars+=m.data.length;
   }
   if(t.received<t.total)return;
   incomingTransfers.delete(id);
-  const snapshot=JSON.parse(t.chunks.join(""));
+  let snapshot;
+  try {
+    snapshot=JSON.parse(t.chunks.join(""));
+  } catch {
+    emit("error","Se recibió una transferencia incompleta o inválida.");
+    return;
+  }
+  if(!snapshot||typeof snapshot!=="object"||Array.isArray(snapshot)||
+    (snapshot.units!==undefined&&!Array.isArray(snapshot.units))||
+    (snapshot.lots!==undefined&&!Array.isArray(snapshot.lots))||
+    (snapshot.meta!==undefined&&!Array.isArray(snapshot.meta))){
+    emit("error","La estructura de los datos recibidos no es válida.");
+    return;
+  }
   const v=t.version;
   if(t.purpose==="state-response"){
     if(v>=remoteVersion){
