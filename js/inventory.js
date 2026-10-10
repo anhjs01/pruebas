@@ -312,15 +312,24 @@ export async function saveUnit(data, oldId) {
     ==========================================================
   */
 
-  const history =
-    await getByKey(CONFIG.meta, "usedIds");
+  const [history, deletedHistory] = await Promise.all([
+    getByKey(CONFIG.meta, "usedIds"),
+    getByKey(CONFIG.meta, "deletedIds")
+  ]);
 
   const usedIds =
     Array.isArray(history?.value)
       ? [...history.value]
       : [];
+  const deletedIds =
+    Array.isArray(deletedHistory?.value)
+      ? [...deletedHistory.value]
+      : [];
 
-  const normalizedUsedIds = new Set(usedIds.map(value => String(value).trim().toLowerCase()));
+  // Los IDs borrados también quedan reservados aunque una importación
+  // antigua no los hubiera incluido en usedIds.
+  const reservedIds = [...usedIds, ...deletedIds];
+  const normalizedUsedIds = new Set(reservedIds.map(value => String(value).trim().toLowerCase()));
 
   let unitId =
     (data.unitId || "").trim();
