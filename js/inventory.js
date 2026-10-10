@@ -1,5 +1,5 @@
 import { CONFIG } from "./config.js";
-import { getAll, getByKey, put, del } from "./db.js";
+import { getAll, getByKey, put, del, replaceStoresAtomically } from "./db.js";
 import { activeLot } from "./lots.js";
 
 /*
@@ -407,43 +407,31 @@ export async function saveUnit(data, oldId) {
  * El ID continúa quedando reservado.
  */
 export async function removeUnit(id) {
-  const unit =
-    await getByKey(
-      CONFIG.store,
-      id
-    );
+  const [unit, units, meta] = await Promise.all([
+    getByKey(CONFIG.store, id),
+    getAll(CONFIG.store),
+    getAll(CONFIG.meta)
+  ]);
 
   if (!unit) return;
 
-  const history =
-    await getByKey(
-      CONFIG.meta,
-      "deletedIds"
-    );
+  const metaMap = new Map(meta.map(item => [item.key, item]));
+  const history = metaMap.get("deletedIds");
+  const deletedIds = Array.isArray(history?.value) ? [...history.value] : [];
+  const normalized = new Set(deletedIds.map(value => String(value).trim().toLowerCase()));
+  const unitId = String(unit.unitId || "").trim();
 
-  const deletedIds =
-    Array.isArray(history?.value)
-      ? [...history.value]
-      : [];
-
-  if (
-    unit.unitId &&
-    !deletedIds.includes(unit.unitId)
-  ) {
-    deletedIds.push(unit.unitId);
-
-    await put(CONFIG.meta, {
-      key: "deletedIds",
-      value: deletedIds
-    });
+  if (unitId && !normalized.has(unitId.toLowerCase())) {
+    deletedIds.push(unitId);
   }
+  metaMap.set("deletedIds", { key: "deletedIds", value: deletedIds });
 
-  await del(
-    CONFIG.store,
-    id
-  );
+  // El tombstone y la eliminación se confirman juntos: si la transacción
+  // falla, la unidad no queda borrada a medias ni marcada falsamente.
+  await replaceStoresAtomically({
+    [CONFIG.store]: units.filter(item => item.id !== id),
+    [CONFIG.meta]: [...metaMap.values()]
+  });
 
-  await normalizeLotSequences(
-    unit.lotId
-  );
+  await normalizeLotSequences(unit.lotId);
 }
