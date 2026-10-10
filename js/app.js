@@ -1,5 +1,5 @@
 import{CONFIG}from"./config.js";
-import{getAll,getByKey,put,del,replaceStoresAtomically}from"./db.js";
+import{getAll,getByKey,put,del,replaceStoresAtomically,putManyAtomically}from"./db.js";
 import{activeLot,listLots,selectLot,createLot,updateLot,deleteLot}from"./lots.js";
 import{unitsForActiveLot,stats,saveUnit,removeUnit}from"./inventory.js";
 import{scanIdentification,closeScanner}from"./scanner.js";
@@ -1041,12 +1041,29 @@ $("#importExcelFile").onchange=async e=>{
       pending.push(imported);
     }
 
-    for(const imported of pending){
-      await saveUnit({
-        ...imported,
-        sequence:undefined
-      });
+    // La importación y el historial de IDs se guardan en una sola
+    // transacción: un error no deja solo una parte del Excel importada.
+    const normalizedHistory = new Map();
+    for (const value of [
+      ...(Array.isArray(history?.value) ? history.value : []),
+      ...pending.map(unit => unit.unitId)
+    ]) {
+      const original = String(value ?? "").trim();
+      const normalized = original.toLowerCase();
+      if (normalized && !normalizedHistory.has(normalized)) {
+        normalizedHistory.set(normalized, original);
+      }
     }
+    const records = pending.map((unit, index) => ({
+      ...unit,
+      sequence: current.length + index + 1,
+      lotId: lot.id,
+      lotDate: unit.lotDate || lot.date
+    }));
+    await putManyAtomically([
+      {store:CONFIG.store,records},
+      {store:CONFIG.meta,records:[{key:"usedIds",value:[...normalizedHistory.values()]}]}
+    ]);
 
     const added=pending.length;
 
