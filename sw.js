@@ -1,4 +1,4 @@
-const CACHE = "conteo-rapido-v27";
+const CACHE = "conteo-rapido-v28";
 const CORE = [
   "./",
   "./index.html",
