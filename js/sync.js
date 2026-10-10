@@ -33,7 +33,7 @@ async function receiveSnapshotChunk(m){
   if(!id||id.length>160||!allowedPurposes.has(m.purpose)||
     !Number.isInteger(m.index)||!Number.isInteger(m.total)||
     m.total<1||m.total>2000||m.index<0||m.index>=m.total||
-    typeof m.data!=="string"||m.data.length>5000)return;
+    typeof m.data!=="string"||m.data.length>10000)return;
   let t=incomingTransfers.get(id);
   if(!t){
     // Limita las transferencias incompletas simultáneas para contener el uso de memoria.
@@ -64,9 +64,9 @@ async function receiveSnapshotChunk(m){
     return;
   }
   if(!snapshot||typeof snapshot!=="object"||Array.isArray(snapshot)||
-    (snapshot.units!==undefined&&!Array.isArray(snapshot.units))||
-    (snapshot.lots!==undefined&&!Array.isArray(snapshot.lots))||
-    (snapshot.meta!==undefined&&!Array.isArray(snapshot.meta))){
+    !Array.isArray(snapshot.units)||
+    !Array.isArray(snapshot.lots)||
+    !Array.isArray(snapshot.meta)){
     emit("error","La estructura de los datos recibidos no es válida.");
     return;
   }
