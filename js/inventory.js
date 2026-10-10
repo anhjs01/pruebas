@@ -80,18 +80,23 @@ export async function normalizeLotSequences(lotId) {
 
   let sequence = 1;
   let changed = false;
+  const changedUnits = [];
+  const updatedAt = new Date().toISOString();
 
   for (const unit of units) {
     if (Number(unit.sequence) !== sequence) {
       unit.sequence = sequence;
-      unit.updatedAt = new Date().toISOString();
-
-      await put(CONFIG.store, unit);
-
+      unit.updatedAt = updatedAt;
+      changedUnits.push(unit);
       changed = true;
     }
 
     sequence++;
+  }
+
+  // Todas las secuencias corregidas se guardan en una sola transacción.
+  if (changedUnits.length) {
+    await putManyAtomically([{ store: CONFIG.store, records: changedUnits }]);
   }
 
   return {
@@ -203,16 +208,16 @@ export async function setUnitSequence(unitId, requestedSequence) {
   normalized.splice(target - 1, 0, movingUnit);
 
   /*
-    Reasignamos solamente sequence.
+    Reasignamos solamente sequence y guardamos todas las posiciones
+    juntas para evitar que un fallo deje el lote a medio reordenar.
   */
+  const updatedAt = new Date().toISOString();
   for (let i = 0; i < normalized.length; i++) {
-    const x = normalized[i];
-
-    x.sequence = i + 1;
-    x.updatedAt = new Date().toISOString();
-
-    await put(CONFIG.store, x);
+    normalized[i].sequence = i + 1;
+    normalized[i].updatedAt = updatedAt;
   }
+
+  await putManyAtomically([{ store: CONFIG.store, records: normalized }]);
 
   return normalized.find(x => x.id === unitId);
 }
