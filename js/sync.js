@@ -11,8 +11,23 @@ function send(m){if(!connection?.open)return false;try{connection.send(m);return
 async function finish(detail="Datos sincronizados."){synced=true;decisionMade=true;emit("synced",detail);if(pendingSnapshot){const s=pendingSnapshot,v=pendingVersion;pendingSnapshot=null;pendingVersion=0;sendUpdate(s,v)}}
 function sendSnapshot(type,snapshot,version=0){
   if(!snapshot)return false;
-  const chars=Array.from(JSON.stringify(snapshot));
+  let serialized;
+  try {
+    serialized=JSON.stringify(snapshot);
+  } catch {
+    emit("error","No se pudieron preparar los datos para sincronizar.");
+    return false;
+  }
+  if(typeof serialized!=="string"||serialized.length>10000000){
+    emit("error","Los datos superan el límite permitido para una sincronización. Reduce el tamaño y vuelve a intentarlo.");
+    return false;
+  }
+  const chars=Array.from(serialized);
   const total=Math.max(1,Math.ceil(chars.length/SNAPSHOT_CHUNK_SIZE));
+  if(total>2000){
+    emit("error","La transferencia supera el número máximo de fragmentos.");
+    return false;
+  }
   const transferId=type+"-"+Date.now()+"-"+Math.random().toString(36).slice(2,8);
   for(let i=0;i<total;i++){
     const chunk=chars.slice(i*SNAPSHOT_CHUNK_SIZE,(i+1)*SNAPSHOT_CHUNK_SIZE).join("");
