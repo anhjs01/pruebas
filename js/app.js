@@ -806,11 +806,17 @@ async function applySnapshot(snapshot){
   const deletedLotsMeta = metaMap.get("deletedLots");
   const deletedLots = new Set(
     Array.isArray(deletedLotsMeta?.value)
-      ? deletedLotsMeta.value.map(value => String(value))
+      ? deletedLotsMeta.value.map(value => String(value).trim().toLowerCase())
       : []
   );
   for (const lotId of lotMap.keys()) {
-    if (deletedLots.has(String(lotId))) lotMap.delete(lotId);
+    if (deletedLots.has(String(lotId).trim().toLowerCase())) lotMap.delete(lotId);
+  }
+  // Un lote eliminado no debe conservar unidades huérfanas, incluso si
+  // algún registro antiguo carecía de unitId y no pudo generar tombstone.
+  for (const [key, unit] of unitMap) {
+    const unitLotId = String(unit?.lotId || "").trim().toLowerCase();
+    if (unitLotId && deletedLots.has(unitLotId)) unitMap.delete(key);
   }
 
   const mergedLots = [...lotMap.values()];
