@@ -394,8 +394,14 @@ export async function readExcelFile(file) {
   }
 
   const columns = Object.keys(rows[0]);
-  if (!columns.includes("ID")) {
-    throw new Error('El Excel no tiene la columna "ID".');
+  const requiredColumns = ["ID", "Estado diagnóstico"];
+  const missingColumns = requiredColumns.filter(column => !columns.includes(column));
+  if (missingColumns.length) {
+    throw new Error(
+      "Faltan columnas obligatorias en el Excel: " +
+      missingColumns.map(column => '"' + column + '"').join(", ") +
+      ". Usa la plantilla de Conteo Rápido o revisa los encabezados."
+    );
   }
 
   return {
