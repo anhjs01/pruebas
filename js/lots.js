@@ -1,1 +1,27 @@
-import{CONFIG}from"./config.js";import{getAll,getByKey,put,del}from"./db.js";const localISODate=(date=new Date())=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,"0"),String(date.getDate()).padStart(2,"0")].join("-");export async function activeLot(){const m=await getByKey(CONFIG.meta,"activeLot");return m?.value?getByKey(CONFIG.lots,m.value):null}export async function ensureLot(){let l=await activeLot();if(l)return l;const d=new Date(),x={id:"lot-"+crypto.randomUUID(),name:"Lote "+d.toLocaleDateString("es-CO"),date:localISODate(d),createdAt:d.toISOString(),status:"active",observations:""};await put(CONFIG.lots,x);await put(CONFIG.meta,{key:"activeLot",value:x.id});return x}export const listLots=()=>getAll(CONFIG.lots);export async function selectLot(id){if(await getByKey(CONFIG.lots,id))await put(CONFIG.meta,{key:"activeLot",value:id})}export async function createLot(name,date,observations=""){const d=new Date(),x={id:"lot-"+crypto.randomUUID(),name:name||"Lote "+d.toLocaleDateString("es-CO"),date:date||localISODate(d),createdAt:d.toISOString(),status:"active",observations};await put(CONFIG.lots,x);await selectLot(x.id);return x}export async function updateLot(x){await put(CONFIG.lots,x);return x}export async function deleteLot(id){const units=(await getAll(CONFIG.store)).filter(u=>u.lotId===id);const history=await getByKey(CONFIG.meta,"deletedIds");const deletedIds=Array.isArray(history?.value)?[...history.value]:[];const known=new Set(deletedIds.map(x=>String(x).trim().toLowerCase()));for(const u of units){const unitId=String(u.unitId||"").trim();if(unitId&&!known.has(unitId.toLowerCase())){deletedIds.push(unitId);known.add(unitId.toLowerCase())}}if(deletedIds.length)await put(CONFIG.meta,{key:"deletedIds",value:deletedIds});for(const u of units)await del(CONFIG.store,u.id);const active=await getByKey(CONFIG.meta,"activeLot");await del(CONFIG.lots,id);if(active?.value===id)await del(CONFIG.meta,"activeLot")}
+import{CONFIG}from"./config.js";import{getAll,getByKey,put,del}from"./db.js";const localISODate=(date=new Date())=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,"0"),String(date.getDate()).padStart(2,"0")].join("-");export async function activeLot(){const m=await getByKey(CONFIG.meta,"activeLot");return m?.value?getByKey(CONFIG.lots,m.value):null}export async function ensureLot(){let l=await activeLot();if(l)return l;const d=new Date(),x={id:"lot-"+crypto.randomUUID(),name:"Lote "+d.toLocaleDateString("es-CO"),date:localISODate(d),createdAt:d.toISOString(),status:"active",observations:""};await put(CONFIG.lots,x);await put(CONFIG.meta,{key:"activeLot",value:x.id});return x}export const listLots=()=>getAll(CONFIG.lots);export async function selectLot(id){if(await getByKey(CONFIG.lots,id))await put(CONFIG.meta,{key:"activeLot",value:id})}export async function createLot(name,date,observations=""){const d=new Date(),x={id:"lot-"+crypto.randomUUID(),name:name||"Lote "+d.toLocaleDateString("es-CO"),date:date||localISODate(d),createdAt:d.toISOString(),status:"active",observations};await put(CONFIG.lots,x);await selectLot(x.id);return x}export async function updateLot(x){await put(CONFIG.lots,x);return x}export async function deleteLot(id){
+  const units=(await getAll(CONFIG.store)).filter(u=>u.lotId===id);
+  const history=await getByKey(CONFIG.meta,"deletedIds");
+  const deletedIds=Array.isArray(history?.value)?[...history.value]:[];
+  const known=new Set(deletedIds.map(x=>String(x).trim().toLowerCase()));
+  for(const u of units){
+    const unitId=String(u.unitId||"").trim();
+    if(unitId&&!known.has(unitId.toLowerCase())){
+      deletedIds.push(unitId);
+      known.add(unitId.toLowerCase());
+    }
+  }
+  if(deletedIds.length)await put(CONFIG.meta,{key:"deletedIds",value:deletedIds});
+
+  // Tombstone para impedir que la sincronización vuelva a crear el lote borrado.
+  const lotHistory=await getByKey(CONFIG.meta,"deletedLots");
+  const deletedLots=Array.isArray(lotHistory?.value)?[...lotHistory.value]:[];
+  if(!deletedLots.includes(id)){
+    deletedLots.push(id);
+    await put(CONFIG.meta,{key:"deletedLots",value:deletedLots});
+  }
+
+  for(const u of units)await del(CONFIG.store,u.id);
+  const active=await getByKey(CONFIG.meta,"activeLot");
+  await del(CONFIG.lots,id);
+  if(active?.value===id)await del(CONFIG.meta,"activeLot");
+}
