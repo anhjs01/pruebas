@@ -42,10 +42,10 @@ async function receiveSnapshotChunk(m){
       const oldest=incomingTransfers.keys().next().value;
       incomingTransfers.delete(oldest);
     }
-    t={total:m.total,version:Number(m.version)||Date.now(),purpose:m.purpose,chunks:new Array(m.total),received:0,chars:0};
+    t={total:m.total,version:Number(m.version),purpose:m.purpose,chunks:new Array(m.total),received:0,chars:0};
     incomingTransfers.set(id,t);
   }
-  if(t.total!==m.total||t.purpose!==m.purpose||t.version!==(Number(m.version)||Date.now())){
+  if(t.total!==m.total||t.purpose!==m.purpose||t.version!==Number(m.version)){
     incomingTransfers.delete(id);
     emit("error","Los fragmentos recibidos no pertenecen a la misma transferencia.");
     return;
