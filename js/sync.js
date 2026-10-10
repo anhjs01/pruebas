@@ -33,6 +33,7 @@ async function receiveSnapshotChunk(m){
   if(!id||id.length>160||!allowedPurposes.has(m.purpose)||
     !Number.isInteger(m.index)||!Number.isInteger(m.total)||
     m.total<1||m.total>2000||m.index<0||m.index>=m.total||
+    !Number.isFinite(Number(m.version))||Number(m.version)<0||
     typeof m.data!=="string"||m.data.length>10000)return;
   let t=incomingTransfers.get(id);
   if(!t){
@@ -44,7 +45,11 @@ async function receiveSnapshotChunk(m){
     t={total:m.total,version:Number(m.version)||Date.now(),purpose:m.purpose,chunks:new Array(m.total),received:0,chars:0};
     incomingTransfers.set(id,t);
   }
-  if(t.total!==m.total||t.purpose!==m.purpose)return;
+  if(t.total!==m.total||t.purpose!==m.purpose||t.version!==(Number(m.version)||Date.now())){
+    incomingTransfers.delete(id);
+    emit("error","Los fragmentos recibidos no pertenecen a la misma transferencia.");
+    return;
+  }
   if(t.chunks[m.index]===undefined&&t.chars+m.data.length>10000000){
     incomingTransfers.delete(id);
     return;
