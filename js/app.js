@@ -768,7 +768,7 @@ async function applySnapshot(snapshot){
   for (const item of [...currentMeta, ...snapshot.meta]) {
     const key = item?.key;
     if (key == null) continue;
-    if (["usedIds", "deletedIds"].includes(key)) {
+    if (["usedIds", "deletedIds", "deletedLots"].includes(key)) {
       const values = [
         ...(Array.isArray(metaMap.get(key)?.value) ? metaMap.get(key).value : []),
         ...(Array.isArray(item.value) ? item.value : [])
@@ -800,6 +800,17 @@ async function applySnapshot(snapshot){
     if (unitId && deletedIds.has(unitId)) {
       unitMap.delete(key);
     }
+  }
+
+  // Los lotes eliminados también prevalecen sobre instantáneas antiguas.
+  const deletedLotsMeta = metaMap.get("deletedLots");
+  const deletedLots = new Set(
+    Array.isArray(deletedLotsMeta?.value)
+      ? deletedLotsMeta.value.map(value => String(value))
+      : []
+  );
+  for (const lotId of lotMap.keys()) {
+    if (deletedLots.has(String(lotId))) lotMap.delete(lotId);
   }
 
   const mergedLots = [...lotMap.values()];
