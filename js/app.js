@@ -1012,16 +1012,15 @@ $("#importExcelFile").onchange=async e=>{
       current.map(x=>String(x.unitId||"").trim().toLowerCase()).filter(Boolean)
     );
 
-    const history=await getByKey(
-      CONFIG.meta,
-      "usedIds"
-    );
+    const [history, deletedHistory]=await Promise.all([
+      getByKey(CONFIG.meta,"usedIds"),
+      getByKey(CONFIG.meta,"deletedIds")
+    ]);
 
-    const usedIds=new Set(
-      Array.isArray(history?.value)
-        ?history.value.map(value=>String(value).trim().toLowerCase())
-        :[]
-    );
+    const usedIds=new Set([
+      ...(Array.isArray(history?.value)?history.value:[]),
+      ...(Array.isArray(deletedHistory?.value)?deletedHistory.value:[])
+    ].map(value=>String(value).trim().toLowerCase()));
 
     const pending=[];
     let skipped=0;
