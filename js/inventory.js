@@ -188,6 +188,7 @@ export async function setUnitSequence(unitId, requestedSequence) {
   */
   const normalized = units.map((x, index) => ({
     ...x,
+    _originalSequence: Number(x.sequence),
     sequence: index + 1
   }));
 
@@ -212,12 +213,23 @@ export async function setUnitSequence(unitId, requestedSequence) {
     juntas para evitar que un fallo deje el lote a medio reordenar.
   */
   const updatedAt = new Date().toISOString();
+  const changedUnits = [];
   for (let i = 0; i < normalized.length; i++) {
-    normalized[i].sequence = i + 1;
-    normalized[i].updatedAt = updatedAt;
+    const item = normalized[i];
+    const nextSequence = i + 1;
+    if (item._originalSequence !== nextSequence) {
+      item.sequence = nextSequence;
+      item.updatedAt = updatedAt;
+      changedUnits.push(item);
+    }
+    delete item._originalSequence;
   }
 
-  await putManyAtomically([{ store: CONFIG.store, records: normalized }]);
+  // Si la unidad ya estaba en esa posición, no reescribimos el lote
+  // ni alteramos updatedAt de registros que realmente no cambiaron.
+  if (changedUnits.length) {
+    await putManyAtomically([{ store: CONFIG.store, records: changedUnits }]);
+  }
 
   return normalized.find(x => x.id === unitId);
 }
