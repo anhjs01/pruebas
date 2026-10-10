@@ -38,3 +38,40 @@ export async function replaceStoresAtomically(replacements){
     }
   });
 }
+
+
+/**
+ * Guarda lotes de registros en varios almacenes dentro de una transacción.
+ * No borra registros existentes; si una escritura falla, la operación se revierte.
+ */
+export async function putManyAtomically(entries){
+  const allowed=[CONFIG.store,CONFIG.lots,CONFIG.meta];
+  if(!Array.isArray(entries)||!entries.length||
+    entries.some(entry=>!entry||!allowed.includes(entry.store)||!Array.isArray(entry.records))){
+    throw new Error("Los registros para guardar no son válidos.");
+  }
+  const names=[...new Set(entries.map(entry=>entry.store))];
+  const d=await openDB();
+  return new Promise((resolve,reject)=>{
+    let tx;
+    try{
+      tx=d.transaction(names,"readwrite");
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>reject(tx.error||new Error("No se pudieron guardar los registros."));
+      tx.onabort=()=>reject(tx.error||new Error("La operación de guardado fue cancelada."));
+      for(const entry of entries){
+        const store=tx.objectStore(entry.store);
+        for(const record of entry.records){
+          if(!record||typeof record!=="object"||Array.isArray(record)){
+            tx.abort();
+            return;
+          }
+          store.put(record);
+        }
+      }
+    }catch(error){
+      try{tx?.abort()}catch{}
+      reject(error);
+    }
+  });
+}
