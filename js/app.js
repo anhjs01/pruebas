@@ -1,5 +1,5 @@
 import{CONFIG}from"./config.js";
-import{getAll,getByKey,put,del}from"./db.js";
+import{getAll,getByKey,put,del,replaceStoresAtomically}from"./db.js";
 import{activeLot,listLots,selectLot,createLot,updateLot,deleteLot}from"./lots.js";
 import{unitsForActiveLot,stats,saveUnit,removeUnit}from"./inventory.js";
 import{scanIdentification,closeScanner}from"./scanner.js";
@@ -806,17 +806,13 @@ async function applySnapshot(snapshot){
     else metaMap.delete("activeLot");
   }
 
-  // Solo después de preparar la unión se reemplaza el contenido local.
-  for (const store of [CONFIG.store, CONFIG.lots, CONFIG.meta]) {
-    const current = await getAll(store);
-    await Promise.all(current.map(x => del(store, x.id ?? x.key)));
-  }
-
-  await Promise.all([
-    ...[...unitMap.values()].map(x => put(CONFIG.store, x)),
-    ...[...lotMap.values()].map(x => put(CONFIG.lots, x)),
-    ...[...metaMap.values()].map(x => put(CONFIG.meta, x))
-  ]);
+  // El reemplazo de los tres almacenes es atómico: si falla una escritura,
+  // IndexedDB revierte la transacción y conserva el estado anterior.
+  await replaceStoresAtomically({
+    [CONFIG.store]: [...unitMap.values()],
+    [CONFIG.lots]: [...lotMap.values()],
+    [CONFIG.meta]: [...metaMap.values()]
+  });
 
   await refresh();
 }
