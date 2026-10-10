@@ -172,16 +172,35 @@ function clean(value) {
 
 function cleanDate(value) {
   if (value == null || value === "") return "";
+
+  const validDate = (year, month, day) => {
+    const y = Number(year);
+    const m = Number(month);
+    const d = Number(day);
+    if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return "";
+    const date = new Date(Date.UTC(y, m - 1, d));
+    if (
+      date.getUTCFullYear() !== y ||
+      date.getUTCMonth() !== m - 1 ||
+      date.getUTCDate() !== d
+    ) return "";
+    return [String(y).padStart(4, "0"), String(m).padStart(2, "0"), String(d).padStart(2, "0")].join("-");
+  };
+
   if (typeof value === "number" && Number.isFinite(value) && value >= 20000 && value <= 80000) {
     const date = new Date(Date.UTC(1899, 11, 30) + Math.round(value) * 86400000);
-    return date.toISOString().slice(0, 10);
+    return validDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
   }
+
   const text = clean(value);
-  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (iso) return [iso[1], String(iso[2]).padStart(2, "0"), String(iso[3]).padStart(2, "0")].join("-");
+  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:$|T)/);
+  if (iso) return validDate(iso[1], iso[2], iso[3]);
+
   const local = text.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/);
-  if (local) return [local[3], String(local[2]).padStart(2, "0"), String(local[1]).padStart(2, "0")].join("-");
-  return text;
+  if (local) return validDate(local[3], local[2], local[1]);
+
+  // No guardar texto arbitrario en un campo de fecha.
+  return "";
 }
 
 function splitValues(value) {
