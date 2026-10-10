@@ -336,7 +336,7 @@ export async function saveUnit(data, oldId) {
 
   if (!unitId) {
     unitId =
-      await generateUnusedUnitId(usedIds);
+      await generateUnusedUnitId(reservedIds);
   }
 
   // También comprobamos el inventario actual: puede haber registros
