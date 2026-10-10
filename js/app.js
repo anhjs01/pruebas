@@ -773,7 +773,13 @@ async function applySnapshot(snapshot){
         ...(Array.isArray(metaMap.get(key)?.value) ? metaMap.get(key).value : []),
         ...(Array.isArray(item.value) ? item.value : [])
       ];
-      metaMap.set(key, { key, value: [...new Set(values.map(String))] });
+      const unique = new Map();
+      for (const value of values) {
+        const original = String(value ?? "").trim();
+        const normalized = original.toLowerCase();
+        if (normalized && !unique.has(normalized)) unique.set(normalized, original);
+      }
+      metaMap.set(key, { key, value: [...unique.values()] });
     } else if (key === "activeLot") {
       if (!metaMap.has(key)) metaMap.set(key, item);
     } else {
