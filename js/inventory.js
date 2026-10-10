@@ -1,5 +1,5 @@
 import { CONFIG } from "./config.js";
-import { getAll, getByKey, put, del, replaceStoresAtomically } from "./db.js";
+import { getAll, getByKey, put, del, replaceStoresAtomically, putManyAtomically } from "./db.js";
 import { activeLot } from "./lots.js";
 
 /*
@@ -362,14 +362,8 @@ export async function saveUnit(data, oldId) {
     );
   }
 
-  if (!normalizedUsedIds.has(unitId.toLowerCase())) {
-    usedIds.push(unitId);
-
-    await put(CONFIG.meta, {
-      key: "usedIds",
-      value: usedIds
-    });
-  }
+  const updateUsedIds = !normalizedUsedIds.has(unitId.toLowerCase());
+  if (updateUsedIds) usedIds.push(unitId);
 
   const unit = {
     ...data,
@@ -393,7 +387,14 @@ export async function saveUnit(data, oldId) {
       new Date().toISOString()
   };
 
-  await put(CONFIG.store, unit);
+  const writes = [{ store: CONFIG.store, records: [unit] }];
+  if (updateUsedIds) {
+    writes.push({
+      store: CONFIG.meta,
+      records: [{ key: "usedIds", value: usedIds }]
+    });
+  }
+  await putManyAtomically(writes);
 
   /*
     Corregimos nuevamente después de guardar.
