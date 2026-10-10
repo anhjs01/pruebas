@@ -1,8 +1,9 @@
-const CACHE = "conteo-rapido-v16";
+const CACHE = "conteo-rapido-v17";
 const CORE = [
   "./",
   "./index.html",
   "./styles.css",
+  "./icon.svg",
   "./js/app.js",
   "./js/config.js",
   "./js/db.js",
